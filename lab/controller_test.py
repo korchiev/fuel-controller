@@ -96,7 +96,7 @@ def main() -> None:
     state = response.state.name if response.state is not None else "none"
     print(f"accepted = {response.ok}  state = {state}")
     if not response.ok:
-        print("ACK was not received. The reply still carries the pump's current state.")
+        print("NAK: the pump answered and refused the command. The state above is its current state.")
 
 
 if __name__ == "__main__":

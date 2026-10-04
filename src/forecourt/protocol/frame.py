@@ -10,6 +10,10 @@ class ProtocolError(Exception):
     """A frame is the wrong length, badly framed, or has a bad checksum."""
 
 
+class ChecksumError(ProtocolError):
+    """Six bytes arrived, but the checksum byte does not match."""
+
+
 @dataclass(frozen=True)
 class Frame:
     address: int
@@ -44,7 +48,7 @@ def parse_frame(raw: bytes) -> Frame:
         )
     expected = checksum(address, command, data)
     if received != expected:
-        raise ProtocolError(
+        raise ChecksumError(
             f"bad checksum got={received:02X} expected={expected:02X}"
         )
     return Frame(address, command, data)

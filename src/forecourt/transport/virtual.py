@@ -10,7 +10,9 @@ class VirtualTransport(Transport):
     """Several virtual pumps on one bus.
 
     Every pump sees every frame. Only the addressed pump answers.
-    That is the multidrop behaviour RS-485 will have later.
+    deliver() is that rule. The in-process lesson calls it through
+    exchange(). The RS-485 simulator calls deliver() itself, because
+    the frame has already arrived on the wire.
     """
 
     def __init__(self, on_frame: FrameHook | None = None) -> None:
@@ -28,9 +30,8 @@ class VirtualTransport(Transport):
         except KeyError as exc:
             raise KeyError(f"no pump at address {address}") from exc
 
-    def exchange(self, frame: bytes) -> bytes | None:
-        if self.on_frame is not None:
-            self.on_frame("tx", frame)
+    def deliver(self, frame: bytes) -> bytes | None:
+        """Hand one frame to every pump. Return the single reply, or None."""
         replies = []
         for pump in self._pumps.values():
             reply = pump.receive(frame)
@@ -38,7 +39,12 @@ class VirtualTransport(Transport):
                 replies.append(reply)
         if len(replies) > 1:
             raise RuntimeError(f"more than one pump answered: {replies!r}")
-        reply = replies[0] if replies else None
+        return replies[0] if replies else None
+
+    def exchange(self, frame: bytes) -> bytes | None:
+        if self.on_frame is not None:
+            self.on_frame("tx", frame)
+        reply = self.deliver(frame)
         if reply is not None and self.on_frame is not None:
             self.on_frame("rx", reply)
         return reply

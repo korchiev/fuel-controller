@@ -2,7 +2,7 @@
 
 Этот каталог проверяет физический путь между двумя USB-RS485 адаптерами. Учебный протокол колонки и `SerialTransport` здесь пока не участвуют.
 
-Сейчас готовы Phase 1–4. Кадр для Phase 3 и Phase 4 собирает `build_frame` из `src`. По проводу его возит `SerialTransport`. Он не знает, что такое AUTHORIZE.
+Сейчас готовы Phase 1–6. Кадр собирает `build_frame` из `src`. По проводу его возит `SerialTransport`. Он не знает, что такое AUTHORIZE. Несколько колонок на одном порту обслуживает `VirtualTransport.deliver()`: кадр видят все, отвечает только свой адрес.
 
 ## Что доказывает Phase 2
 
@@ -156,6 +156,103 @@ py -3.13 lab\controller_test.py COM6 --command reset
 - `INVALID FRAME` — шесть байт есть, но кадр или контрольная сумма не сходятся. Это решает `parse_frame`, не транспорт.
 
 Паузы между запросом и ответом нет. Контроллер уже ждёт внутри `read()`, и одной секунды хватает на разворот half-duplex.
+
+## Phase 5 — опрос нескольких адресов
+
+Один процесс на COM5 держит несколько колонок. Контроллер на COM6 по кругу шлёт `GET_STATUS`: адрес 1, затем 2, затем 3. `GET_STATUS` состояние не меняет.
+
+Колонки живут только пока открыто окно симулятора. Закрой старый симулятор, если он ещё слушает COM5, и запусти его с тремя адресами:
+
+```powershell
+py -3.13 lab\device_simulator.py COM5 --addresses 1,2,3
+```
+
+Во втором окне:
+
+```powershell
+py -3.13 lab\poll_controller.py COM6 --addresses 1,2,3
+```
+
+Ожидаемая строка на каждую колонку, между журналами TX/RX:
+
+```
+pump 1: ACK IDLE
+pump 2: ACK IDLE
+pump 3: ACK IDLE
+```
+
+Адрес, которого на COM5 нет, молчит. Опрос повторяет его 3 раза и затем печатает `OFFLINE`. Остановить опрос: Ctrl+C.
+
+`--interval 0.5` — пауза после каждого опроса, чтобы журнал можно было читать. Шине она не нужна. Следующий кадр и так уходит только после ответа или после timeout.
+
+Пока опрос остановлен, прежнее окно симулятора можно подвинуть одной командой, например разрешить только колонку 2:
+
+```powershell
+py -3.13 lab\controller_test.py COM6 --command authorize --address 2 --liters 30
+```
+
+Потом снова запустить опрос. Колонки 1 и 3 останутся IDLE, колонка 2 будет AUTHORIZED. Оба процесса нельзя одновременно открывать на COM6.
+
+## Phase 6 — сбои и повторы
+
+Опрос отличает четыре исхода:
+
+- `ACK` — колонка ответила и приняла запрос. Повтор не нужен.
+- `NAK` — колонка ответила и отказала. Повтор того же кадра не нужен.
+- `TIMEOUT`, `INCOMPLETE RESPONSE`, `BAD CHECKSUM` — достоверного ответа нет. Запрос повторяется.
+- `OFFLINE` — все попытки этого круга не дали ACK или NAK. Следующий круг начинает сначала.
+
+По умолчанию попыток три, `--retries 3`. Для каждого опыта закрой старый симулятор и подними его с одним `--fault`. Во втором окне опрашивай один адрес и один круг, чтобы не ждать лишнее.
+
+Тишина, ответа нет:
+
+```powershell
+py -3.13 lab\device_simulator.py COM5 --addresses 1 --fault silence
+py -3.13 lab\poll_controller.py COM6 --addresses 1 --scans 1 --interval 0
+```
+
+Три строки `TIMEOUT`, затем `OFFLINE`. На это уходит около трёх секунд: каждая попытка ждёт timeout.
+
+NAK, колонка жива и отказала. Состояние на симуляторе не меняется, повтор один:
+
+```powershell
+py -3.13 lab\device_simulator.py COM5 --addresses 1 --fault nak
+py -3.13 lab\poll_controller.py COM6 --addresses 1 --scans 1 --interval 0
+```
+
+Ожидается `pump 1: NAK IDLE`.
+
+Битая контрольная сумма. Шесть байт приходят, `parse_frame` их отвергает, опрос повторяет:
+
+```powershell
+py -3.13 lab\device_simulator.py COM5 --addresses 1 --fault bad-checksum
+py -3.13 lab\poll_controller.py COM6 --addresses 1 --scans 1 --interval 0
+```
+
+Три строки `BAD CHECKSUM`, затем `OFFLINE`.
+
+Короткий ответ, два байта вместо шести:
+
+```powershell
+py -3.13 lab\device_simulator.py COM5 --addresses 1 --fault short
+py -3.13 lab\poll_controller.py COM6 --addresses 1 --scans 1 --interval 0
+```
+
+Каждая попытка — `INCOMPLETE RESPONSE`, потому что `read` дожидается шести байт и не дожидается.
+
+Задержка меньше timeout всё ещё заканчивается ACK. Задержка больше timeout становится `TIMEOUT`. Ответ, пришедший уже после отказа контроллера, следующий запрос сбрасывает, если он успел лечь в буфер порта до новой передачи:
+
+```powershell
+py -3.13 lab\device_simulator.py COM5 --addresses 1 --fault delay --fault-delay 0.3
+py -3.13 lab\poll_controller.py COM6 --addresses 1 --scans 1 --interval 0
+```
+
+Настоящий NAK без флага: колонка в IDLE, команда STOP ей не подходит.
+
+```powershell
+py -3.13 lab\device_simulator.py COM5
+py -3.13 lab\controller_test.py COM6 --command stop
+```
 
 ## Если байт не дошёл
 

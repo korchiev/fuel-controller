@@ -1,4 +1,6 @@
 from forecourt.drivers.virtual import VirtualPumpDriver
+from forecourt.protocol.commands import GET_STATUS
+from forecourt.protocol.frame import build_frame, parse_frame
 from forecourt.pumps.state import State
 from forecourt.pumps.virtual_pump import VirtualPump
 from forecourt.transport.virtual import VirtualTransport
@@ -19,6 +21,20 @@ def test_driver_cycle_on_pump_2_leaves_pump_3_idle():
     assert driver.reset(2).state is State.IDLE
     assert bus.pump(3).state is State.IDLE
     assert bus.pump(2).preset_liters == 50
+
+
+def test_only_the_addressed_pump_answers():
+    bus = VirtualTransport()
+    for address in (1, 2, 3):
+        bus.attach(VirtualPump(address))
+    reply = bus.deliver(build_frame(2, GET_STATUS, 0))
+    assert reply is not None
+    frame = parse_frame(reply)
+    assert frame.address == 2
+    assert frame.data == State.IDLE.value
+    assert bus.deliver(build_frame(9, GET_STATUS, 0)) is None
+    assert bus.pump(1).state is State.IDLE
+    assert bus.pump(3).state is State.IDLE
 
 
 def test_missing_pump_is_silence():

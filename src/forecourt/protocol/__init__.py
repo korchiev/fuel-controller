@@ -10,11 +10,19 @@ from forecourt.protocol.commands import (
     START_FUELING,
     STOP,
 )
-from forecourt.protocol.frame import Frame, ProtocolError, build_frame, explain, parse_frame
+from forecourt.protocol.frame import (
+    ChecksumError,
+    Frame,
+    ProtocolError,
+    build_frame,
+    explain,
+    parse_frame,
+)
 
 __all__ = [
     "ACK",
     "AUTHORIZE",
+    "ChecksumError",
     "END",
     "Frame",
     "GET_STATUS",
