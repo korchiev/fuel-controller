@@ -5,7 +5,7 @@ Run from the repo root:
     PYTHONPATH=src python examples/virtual_station.py
 """
 
-from forecourt.drivers.virtual import VirtualPumpDriver
+from forecourt.drivers.virtual import EducationalDriver
 from forecourt.protocol.frame import explain
 from forecourt.pumps.virtual_pump import VirtualPump
 from forecourt.transport.virtual import VirtualTransport
@@ -15,7 +15,7 @@ def main() -> None:
     bus = VirtualTransport(on_frame=lambda direction, raw: print(f"  {direction:>2}  {explain(raw)}"))
     bus.attach(VirtualPump(2))
     bus.attach(VirtualPump(3))
-    driver = VirtualPumpDriver(bus)
+    driver = EducationalDriver(bus)
 
     def step(title: str, response) -> None:
         print(f"\n{title}")

@@ -13,8 +13,13 @@ from forecourt.pumps.state import State
 from forecourt.transport.base import Transport
 
 
-class VirtualPumpDriver(PumpDriver):
-    """Speaks the teaching protocol over any Transport."""
+class EducationalDriver(PumpDriver):
+    """Teaching protocol behind the pump interface.
+
+    This class is the only place that turns authorize(), start(), and
+    get_transaction() into the six-byte lesson frames. A future dispenser
+    protocol replaces this class, not the controller above it.
+    """
 
     def __init__(self, transport: Transport) -> None:
         self.transport = transport
@@ -69,3 +74,7 @@ class VirtualPumpDriver(PumpDriver):
             request=request,
             response=raw,
         )
+
+
+# Older lessons constructed this name. It is the same driver.
+VirtualPumpDriver = EducationalDriver

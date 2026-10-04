@@ -13,7 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from forecourt.drivers.virtual import VirtualPumpDriver
+from forecourt.controller import ForecourtController
+from forecourt.drivers.virtual import EducationalDriver
 from forecourt.protocol.frame import FRAME_LEN, ProtocolError, explain
 from forecourt.transport.errors import IncompleteResponse, Timeout, TransportError
 from forecourt.transport.serial import SerialTransport
@@ -44,18 +45,18 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def send(driver: VirtualPumpDriver, args: argparse.Namespace):
+def send(controller: ForecourtController, args: argparse.Namespace):
     if args.command == "authorize":
-        return driver.authorize(args.address, args.liters)
+        return controller.authorize(args.address, args.liters)
     if args.command == "start":
-        return driver.start_fueling(args.address)
+        return controller.start(args.address)
     if args.command == "stop":
-        return driver.stop(args.address)
+        return controller.stop(args.address)
     if args.command == "reset":
-        return driver.reset(args.address)
+        return controller.reset(args.address)
     if args.command == "transaction":
-        return driver.get_transaction(args.address)
-    return driver.get_status(args.address)
+        return controller.transaction(args.address)
+    return controller.status(args.address)
 
 
 def main() -> None:
@@ -68,15 +69,16 @@ def main() -> None:
         parity=args.parity,
         stopbits=args.stopbits,
     )
-    driver = VirtualPumpDriver(link)
+    controller = ForecourtController(EducationalDriver(link))
     print(f"Python: {sys.executable}")
+    print("driver = EducationalDriver")
     print(
         f"Controller on {args.port} at {args.baudrate} baud, "
         f"8{args.parity.upper()}{args.stopbits}, timeout={args.timeout}s"
     )
     try:
         with link:
-            response = send(driver, args)
+            response = send(controller, args)
     except Timeout as exc:
         print(exc)
         sys.exit(1)

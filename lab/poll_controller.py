@@ -16,8 +16,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from forecourt.drivers.virtual import VirtualPumpDriver
-from forecourt.poll import PollResult, poll_address
+from forecourt.controller import ForecourtController
+from forecourt.drivers.virtual import EducationalDriver
+from forecourt.poll import PollResult
 from forecourt.protocol.frame import FRAME_LEN
 from forecourt.transport.errors import TransportError
 from forecourt.transport.serial import SerialTransport
@@ -111,9 +112,10 @@ def main() -> None:
         parity=args.parity,
         stopbits=args.stopbits,
     )
-    driver = VirtualPumpDriver(link)
+    controller = ForecourtController(EducationalDriver(link), retries=args.retries)
     listed = ", ".join(str(address) for address in addresses)
     print(f"Python: {sys.executable}")
+    print("driver = EducationalDriver")
     print(
         f"Polling {listed} on {args.port} at {args.baudrate} baud, "
         f"8{args.parity.upper()}{args.stopbits}, timeout={args.timeout}s"
@@ -126,7 +128,7 @@ def main() -> None:
                 scan += 1
                 print(f"--- scan {scan} ---")
                 for address in addresses:
-                    result = poll_address(driver.get_status, address, args.retries)
+                    result = controller.poll_status(address)
                     report(result, args.retries)
                     if args.interval:
                         time.sleep(args.interval)
