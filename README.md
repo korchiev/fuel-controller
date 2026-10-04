@@ -50,4 +50,4 @@ PYTHONPATH=src python examples/virtual_station.py
 PYTHONPATH=src python -m pytest
 ```
 
-`SerialTransport` пока заглушка. Живой USB-RS485 и Tatsuno подключаются позже, когда будет подтверждённый протокол, а не учебный кадр.
+`SerialTransport` переносит байты через COM-порт и не разбирает кадр. Лаборатория на двух USB-RS485 описана в [`lab/README.md`](lab/README.md).

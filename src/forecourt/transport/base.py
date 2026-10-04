@@ -6,4 +6,9 @@ class Transport(ABC):
 
     @abstractmethod
     def exchange(self, frame: bytes) -> bytes | None:
-        """Send one frame. Return the single reply, or None on silence."""
+        """Send one frame and return the single reply.
+
+        None means the peer chose silence, as a virtual pump does when the
+        address is not its own. A serial port cannot see that difference
+        until the timer fires, so SerialTransport raises Timeout instead.
+        """
