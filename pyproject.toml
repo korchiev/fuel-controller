@@ -1,0 +1,20 @@
+[project]
+name = "fuel-controller"
+version = "0.1.0"
+description = "Educational forecourt controller. The on-wire protocol in this repo is a teaching protocol, not Tatsuno SS-LAN."
+requires-python = ">=3.11"
+dependencies = ["pyserial"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
