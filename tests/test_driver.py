@@ -37,6 +37,18 @@ def test_only_the_addressed_pump_answers():
     assert bus.pump(3).state is State.IDLE
 
 
+def test_transaction_reports_dispensed_liters():
+    bus, driver = station()
+    assert driver.authorize(2, 10).state is State.AUTHORIZED
+    assert driver.start_fueling(2).state is State.FUELING
+    assert bus.pump(2).advance(1, 4) is True
+    response = driver.get_transaction(2)
+    assert response.ok is True
+    assert response.volume == 4
+    assert response.state is None
+    assert bus.pump(3).delivered_liters == 0
+
+
 def test_missing_pump_is_silence():
     bus = VirtualTransport()
     bus.attach(VirtualPump(2))

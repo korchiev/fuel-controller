@@ -64,6 +64,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--parity", default="N", help="N, E, or O (default: N)")
     parser.add_argument("--stopbits", type=int, default=1)
     parser.add_argument(
+        "--flow",
+        type=float,
+        default=5,
+        help="whole liters per second while FUELING; 0 holds the counter (default: 5)",
+    )
+    parser.add_argument(
+        "--price",
+        type=float,
+        default=2,
+        help="price units per liter, printed locally, not sent on the wire (default: 2)",
+    )
+    parser.add_argument(
         "--fault",
         choices=("none", "silence", "nak", "bad-checksum", "short", "delay"),
         default="none",
@@ -97,6 +109,9 @@ def main() -> None:
     if args.fault_delay < 0:
         print("fault-delay must be >= 0", file=sys.stderr)
         sys.exit(1)
+    if args.flow < 0 or args.price < 0:
+        print("flow and price must be >= 0", file=sys.stderr)
+        sys.exit(1)
     try:
         addresses = parse_addresses(args.addresses) if args.addresses else [args.address]
     except ValueError as exc:
@@ -118,22 +133,45 @@ def main() -> None:
     print(
         f"Pumps {listed} on {args.port} at {args.baudrate} baud, "
         f"8{args.parity.upper()}{args.stopbits}, timeout={args.timeout}s, "
-        f"fault={args.fault}"
+        f"fault={args.fault}, flow={args.flow} L/s, price={args.price}"
     )
     for address in addresses:
         print(f"  pump {address} state = {bus.pump(address).state.name}")
     print("Waiting for a frame. Ctrl+C to stop.")
+    clock = time.monotonic()
+
+    def flow_since_last() -> None:
+        nonlocal clock
+        now = time.monotonic()
+        elapsed = now - clock
+        clock = now
+        if args.flow == 0 or elapsed <= 0:
+            return
+        for address in addresses:
+            pump = bus.pump(address)
+            if not pump.advance(elapsed, args.flow):
+                continue
+            amount = pump.delivered_liters * args.price
+            print(
+                f"pump {pump.address} {pump.state.name}"
+                f"  delivered = {pump.delivered_liters} / {pump.preset_liters} L"
+                f"  amount = {amount:.2f}"
+            )
+
     try:
         with link:
             while True:
                 try:
                     incoming = link.read_exact()
                 except Timeout:
-                    # The port is idle. This is not a failed request.
+                    # The port is idle. That wait is also the fueling clock.
+                    flow_since_last()
                     continue
                 except IncompleteResponse as exc:
+                    flow_since_last()
                     print(exc)
                     continue
+                flow_since_last()
                 print(explain(incoming))
                 try:
                     parse_frame(incoming)
@@ -169,6 +207,7 @@ def main() -> None:
                 print(
                     f"pump {answered.address} state = {answered.state.name}"
                     f"  preset = {answered.preset_liters}"
+                    f"  delivered = {answered.delivered_liters}"
                 )
     except TransportError as exc:
         print(exc, file=sys.stderr)

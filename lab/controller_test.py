@@ -26,9 +26,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("port", help="COM port of this adapter, for example COM6")
     parser.add_argument(
         "--command",
-        choices=("authorize", "start", "stop", "reset", "status"),
+        choices=("authorize", "start", "stop", "reset", "status", "transaction"),
         default="authorize",
-        help="authorize, then start, stop, reset; status only reads (default: authorize)",
+        help="authorize, start, stop, reset, status, or transaction (default: authorize)",
     )
     parser.add_argument("--address", type=int, default=2)
     parser.add_argument(
@@ -53,6 +53,8 @@ def send(driver: VirtualPumpDriver, args: argparse.Namespace):
         return driver.stop(args.address)
     if args.command == "reset":
         return driver.reset(args.address)
+    if args.command == "transaction":
+        return driver.get_transaction(args.address)
     return driver.get_status(args.address)
 
 
@@ -93,6 +95,9 @@ def main() -> None:
         print("TIMEOUT: the transport returned no bytes")
         sys.exit(1)
     print(explain(response.response))
+    if response.volume is not None:
+        print(f"accepted = {response.ok}  volume = {response.volume} L")
+        return
     state = response.state.name if response.state is not None else "none"
     print(f"accepted = {response.ok}  state = {state}")
     if not response.ok:

@@ -3,6 +3,7 @@ from forecourt.protocol.commands import (
     ACK,
     AUTHORIZE,
     GET_STATUS,
+    GET_TRANSACTION,
     RESET,
     START_FUELING,
     STOP,
@@ -36,6 +37,24 @@ class VirtualPumpDriver(PumpDriver):
 
     def reset(self, pump: int) -> PumpResponse:
         return self._roundtrip(pump, RESET, 0)
+
+    def get_transaction(self, pump: int) -> PumpResponse:
+        request = build_frame(pump, GET_TRANSACTION, 0)
+        raw = self.transport.exchange(request)
+        if raw is None:
+            return PumpResponse(
+                ok=False, state=None, request=request, response=None, volume=None
+            )
+        frame = parse_frame(raw)
+        # DATA in this reply is dispensed liters, not a state number.
+        volume = frame.data if frame.command == ACK else None
+        return PumpResponse(
+            ok=frame.command == ACK,
+            state=None,
+            request=request,
+            response=raw,
+            volume=volume,
+        )
 
     def _roundtrip(self, pump: int, command: int, data: int) -> PumpResponse:
         request = build_frame(pump, command, data)

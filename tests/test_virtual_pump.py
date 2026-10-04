@@ -75,6 +75,43 @@ def test_preset_reached_is_an_event_not_a_command():
     _reply(pump, 0x40)
     assert pump.reach_preset() is True
     assert pump.state is State.FINISHED
+    assert pump.delivered_liters == 50
+
+
+def test_fueling_counts_whole_liters_up_to_the_preset():
+    pump = VirtualPump(address=2)
+    _reply(pump, 0x20, 10)
+    _reply(pump, 0x40)
+    assert pump.advance(0.2, 4) is False
+    assert pump.delivered_liters == 0
+    assert pump.advance(1, 4) is True
+    assert pump.delivered_liters == 4
+    assert pump.state is State.FUELING
+    assert pump.advance(2, 4) is True
+    assert pump.delivered_liters == 10
+    assert pump.state is State.FINISHED
+    assert _reply(pump, 0x60).data == 10
+
+
+def test_stop_keeps_the_liters_already_dispensed():
+    pump = VirtualPump(address=2)
+    _reply(pump, 0x20, 10)
+    _reply(pump, 0x40)
+    pump.advance(1, 3)
+    assert _reply(pump, 0x30).data == State.FINISHED.value
+    assert pump.delivered_liters == 3
+    assert _reply(pump, 0x60).data == 3
+
+
+def test_reset_clears_delivered_liters_and_keeps_the_preset():
+    pump = VirtualPump(address=2)
+    _reply(pump, 0x20, 10)
+    _reply(pump, 0x40)
+    pump.advance(1, 10)
+    assert _reply(pump, 0x50).data == State.IDLE.value
+    assert pump.preset_liters == 10
+    assert pump.delivered_liters == 0
+    assert _reply(pump, 0x60).data == 0
 
 
 def test_get_status_does_not_change_state():

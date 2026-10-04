@@ -10,6 +10,7 @@ class PumpResponse:
     state: State | None
     request: bytes
     response: bytes | None
+    volume: int | None = None
 
 
 class PumpDriver(ABC):
@@ -33,4 +34,8 @@ class PumpDriver(ABC):
 
     @abstractmethod
     def reset(self, pump: int) -> PumpResponse:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_transaction(self, pump: int) -> PumpResponse:
         raise NotImplementedError

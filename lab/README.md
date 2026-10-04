@@ -2,7 +2,7 @@
 
 Этот каталог проверяет физический путь между двумя USB-RS485 адаптерами. Учебный протокол колонки и `SerialTransport` здесь пока не участвуют.
 
-Сейчас готовы Phase 1–6. Кадр собирает `build_frame` из `src`. По проводу его возит `SerialTransport`. Он не знает, что такое AUTHORIZE. Несколько колонок на одном порту обслуживает `VirtualTransport.deliver()`: кадр видят все, отвечает только свой адрес.
+Сейчас готовы Phase 1–7. Кадр собирает `build_frame` из `src`. По проводу его возит `SerialTransport`. Он не знает, что такое AUTHORIZE. Несколько колонок на одном порту обслуживает `VirtualTransport.deliver()`: кадр видят все, отвечает только свой адрес.
 
 ## Что доказывает Phase 2
 
@@ -253,6 +253,43 @@ py -3.13 lab\poll_controller.py COM6 --addresses 1 --scans 1 --interval 0
 py -3.13 lab\device_simulator.py COM5
 py -3.13 lab\controller_test.py COM6 --command stop
 ```
+
+## Phase 7 — налив и транзакция
+
+Пресет больше не просто записанное число. После `start` симулятор сам прибавляет целые литры, по умолчанию 5 литров в секунду. Кадр по-прежнему шестибайтовый, поэтому по проводу едут целые литры, не `1.2`. Сумма считается только в окне симулятора: отпущено, умноженное на `--price` (по умолчанию 2). В кадре суммы нет.
+
+Закрой старый симулятор и запусти:
+
+```powershell
+py -3.13 lab\device_simulator.py COM5 --address 2 --flow 5 --price 2
+```
+
+Во втором окне, по очереди:
+
+```powershell
+py -3.13 lab\controller_test.py COM6 --command authorize --liters 20
+py -3.13 lab\controller_test.py COM6 --command start
+```
+
+Окно колонки само печатает ход налива, примерно каждые секунду, пока ждёт следующий кадр:
+
+```text
+pump 2 FUELING  delivered = 5 / 20 L  amount = 10.00
+pump 2 FUELING  delivered = 10 / 20 L  amount = 20.00
+pump 2 FINISHED delivered = 20 / 20 L  amount = 40.00
+```
+
+Когда счётчик дошёл до 20, колонка сама перешла в FINISHED. Снять объём:
+
+```powershell
+py -3.13 lab\controller_test.py COM6 --command transaction
+```
+
+`DATA` в ответе — это литры, не номер состояния. Ожидается `volume = 20 L`.
+
+`stop` до конца пресета оставляет уже отпущенное. Например, остановить на 10 литрах и сразу спросить транзакцию: `volume = 10 L`. `reset` после этого возвращает IDLE и обнуляет счётчик. Последний пресет по-прежнему остаётся 20.
+
+`--flow 0` останавливает счётчик: колонка стоит в FUELING, пока не придёт `stop`.
 
 ## Если байт не дошёл
 
